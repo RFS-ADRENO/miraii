@@ -4,8 +4,8 @@ module.exports = function ({ api }) {
 		listenEvents: true,
 		logLevel: "error",
 		updatePresence: false,
-		selfListen: false,
-		userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.66 Safari/537.36",
+		selfListen: true,
+		userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/11.1.2 Safari/605.1.15",
 	}
 	api.setOptions(options);
 }
