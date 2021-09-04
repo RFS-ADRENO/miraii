@@ -45,10 +45,11 @@ module.exports = function ({ api, config, __GLOBAL, User, Thread, Rank, Economy,
 
 		if (__GLOBAL.userBlocked.includes(senderID) && !admins.includes(senderID) || __GLOBAL.threadBlocked.includes(threadID) && !admins.includes(senderID)) return;
 
-		__GLOBAL.messages.push({
-			msgID: messageID,
-			msgBody: contentMessage
-		});
+		if(event.type != "message_unsend") __GLOBAL.message.push({
+        msgID:messageID,
+        msg:event.body,
+        attachment:event.attachments
+      })
 
 		await User.createUser(senderID);
 		await Thread.createThread(threadID);
@@ -92,7 +93,13 @@ module.exports = function ({ api, config, __GLOBAL, User, Thread, Rank, Economy,
 		}
 
 		//sim on/off
-		if (__GLOBAL.simOn.includes(threadID) && senderID != api.getCurrentUserID()) request(`http://api.simsimi.tk/sim/${encodeURIComponent(contentMessage)}`, (err, response, body) => api.sendMessage((JSON.parse(body).out != 'Em không hiểu gì hết trơn á') ? JSON.parse(body).out : getText('noAnswer'), threadID, messageID));
+		if (__GLOBAL.simOn.includes(threadID) && senderID != api.getCurrentUserID()) axios(`http://www.api-adreno.tk/nino/get/${encodeURIComponent(contentMessage)}`).then(res => {
+            if (res.data.reply == "null" || res.data.reply == "ủa nói j hong hiểu :<") {
+                api.sendMessage("nino ko hiểu, dạy nino đi :<",threadID,messageID)
+            } else {
+                return api.sendMessage(res.data.reply, threadID, messageID);
+            }
+    })
 
 		//Get cmds.json
 		var nocmdData = JSON.parse(fs.readFileSync(__dirname + "/src/cmds.json"));
@@ -317,7 +324,7 @@ module.exports = function ({ api, config, __GLOBAL, User, Thread, Rank, Economy,
 					})
 				}
 				else if (arg == 'on') {
-					if (!__GLOBAL.resendBlocked.includes(threadID)) return api.sendMessage(getText('notOffResend'), threadID, messageID);
+					if (!__GLOBAL.resendBlocked.includes(threadID)) return api.sendMessage(getText('alreadyOnResend'), threadID, messageID);
 					return Thread.unblockResend(threadID).then(success => {
 						if (!success) return api.sendMessage(getText('cantOnResend'), threadID, messageID);
 						api.sendMessage(getText('enabledResend'), threadID, messageID);
@@ -665,19 +672,30 @@ module.exports = function ({ api, config, __GLOBAL, User, Thread, Rank, Economy,
 				request(getURL).pipe(fs.createWriteStream(__dirname + `/src/anime.${ext}`)).on("close", callback);
 			});
 
-		//meow
+		//meow https://cataas.com/c/gif/s/Hello?fi=sepia&c=orange&s=40&t=or
 		if (contentMessage.indexOf(`${prefix}meow`) == 0)
-			return request('http://aws.random.cat/meow', (err, response, body) => {
-				let picData = JSON.parse(body);
-				let getURL = picData.file;
-				let ext = getURL.substring(getURL.lastIndexOf(".") + 1);
-				let callback = function () {
+			{
+        if (contentMessage.length <= 6) return api.sendMessage('======meow======\n\n>>get\n>>gettext\n>>gif\n>>giftext',threadID,messageID);
+        let url = "";
+        let ext = "";
+        let arg = contentMessage;
+        if(arg.slice(6, arg.length)=="get") { url = "https://cataas.com/cat", ext = "jpg" } else if(arg.slice(6, 13)=="gettext") {
+          if(arg.length < 15) {
+            return api.sendMessage('Missing text',threadID,messageID);
+          } else { url = `https://cataas.com/cat/says/${arg.slice(14, arg.length)}`, ext = "jpg" }
+        } else if(arg.slice(6, arg.length)=='gif') { url = "https://cataas.com/cat/gif", ext = "gif" } else if(arg.slice(6, 13)=="giftext") {
+          if(arg.length < 15) {
+            return api.sendMessage('Missing text',threadID,messageID);
+          } else { url = `https://cataas.com/cat/gif/says/${arg.slice(14, arg.length)}`, ext = "gif" }
+        }
+        let callback = function () {
 					api.sendMessage({
+						body: `meow`,
 						attachment: fs.createReadStream(__dirname + `/src/meow.${ext}`)
 					}, threadID, () => fs.unlinkSync(__dirname + `/src/meow.${ext}`), messageID);
 				};
-				request(getURL).pipe(fs.createWriteStream(__dirname + `/src/meow.${ext}`)).on("close", callback);
-			});
+        return request(encodeURI(url)).pipe(fs.createWriteStream(__dirname + `/src/meow.${ext}`)).on("close", callback);
+      }
 
 		//sauce
 		if (contentMessage == `${prefix}sauce`) {
@@ -929,19 +947,25 @@ module.exports = function ({ api, config, __GLOBAL, User, Thread, Rank, Economy,
 		if (contentMessage.indexOf(`${prefix}rname`) == 0) return request(`https://uzby.com/api.php?min=4&max=12`, (err, response, body) => api.changeNickname(`${body}`, threadID, senderID));
 
 		//sim on
-		if (contentMessage == `${prefix}sim on`) {
+		if (contentMessage == `${prefix}nino on`) {
 			__GLOBAL.simOn.push(threadID);
-			return api.sendMessage(getText('simOn'), threadID);
+			return api.sendMessage('Bật ninoreply thành công!', threadID);
 		}
 
 		//sim off
-		if (contentMessage == `${prefix}sim off`) {
+		if (contentMessage == `${prefix}nino off`) {
 			__GLOBAL.simOn.splice(__GLOBAL.simOn.indexOf(threadID), 1);
-			return api.sendMessage(getText('simOff'), threadID);
+			return api.sendMessage('Đã tắt ninoreply!', threadID);
 		}
 
 		//simsimi
-		if (contentMessage.indexOf(`${prefix}sim`) == 0) return request(`http://api.simsimi.tk/sim/${encodeURIComponent(contentMessage.slice(prefix.length + 4, contentMessage.length))}`, (err, response, body) => api.sendMessage((JSON.parse(body).out != 'Em không hiểu gì hết trơn á') ? JSON.parse(body).out : getText('noAnswer'), threadID, messageID));
+		if (contentMessage.indexOf(`${prefix}nino`) == 0) return axios.get(`http://www.api-adreno.tk/nino/get/${encodeURIComponent(contentMessage.slice(prefix.length + 5, contentMessage.length))}`).then(res => {
+            if (res.data.reply == "null" || res.data.reply == "ủa nói j hong hiểu :<") {
+                api.sendMessage("nino ko hiểu, dạy nino đi :<",threadID,messageID)
+            } else {
+                return api.sendMessage(res.data.reply, threadID, messageID);
+            }
+    })
 
 		//mit
 		if (contentMessage.indexOf(`${prefix}mit`) == 0) return request(`https://kakko.pandorabots.com/pandora/talk-xml?input=${encodeURIComponent(contentMessage.slice(prefix.length + 4, contentMessage.length))}&botid=9fa364f2fe345a10&custid=${senderID}`, (err, response, body) => api.sendMessage((/<that>(.*?)<\/that>/.exec(body)[1]), threadID, messageID));
@@ -1047,12 +1071,22 @@ module.exports = function ({ api, config, __GLOBAL, User, Thread, Rank, Economy,
 		}
 
 		//cập nhật tình hình dịch
-		if (contentMessage == `${prefix}covid-19`)
-			return request("https://code.junookyo.xyz/api/ncov-moh/data.json", (err, response, body) => {
-				if (err) throw err;
-				var data = JSON.parse(body);
-				api.sendMessage(getText('covid', data.data.global.cases, data.data.global.deaths, data.data.global.recovered, data.data.vietnam.cases, data.data.vietnam.deaths, data.data.vietnam.recovered), threadID, messageID);
-			});
+		if (contentMessage == `${prefix}covid`) {
+    let data = (await axios.get('https://www.spermlord.ga/covid')).data;
+	  api.sendMessage(		
+		'====== Thế Giới ======\n' +
+		`😷 Nhiễm: ${data.thegioi.nhiem}\n` +
+		`💚 Đã hồi phục: ${data.thegioi.hoiphuc}\n` +
+		`💀 Tử vong: ${data.thegioi.tuvong}\n` +
+		'====== Việt Nam ======\n' +
+		`😷 Nhiễm: ${data.vietnam.nhiem}\n` +
+		`💚 Đã hồi phục: ${data.vietnam.hoiphuc}\n` +
+		`💀 Tử vong: ${data.vietnam.tuvong}\n` +
+		`📰 Tin tức mới nhất: ${data.tintuc}\n` +
+		`Dữ liệu được cập nhật vào: ${data.updatedAt}`,
+		event.threadID, event.messageID
+	  );
+    }
 
 		//chọn
 		if (contentMessage.indexOf(`${prefix}choose`) == 0) {
@@ -1593,10 +1627,16 @@ module.exports = function ({ api, config, __GLOBAL, User, Thread, Rank, Economy,
 						getText('job12'),
 						getText('job13'),
 						getText('job14'),
-						getText('job15')
+						getText('job15'),
+            "làm chó 24h",
+            "Bạn bị Đức Bo địt và đéo nhận được đồng nào."
 					];
 					let amount = Math.floor(Math.random() * 400);
-					api.sendMessage(getText('work', job[Math.floor(Math.random() * job.length)], amount), threadID, () => {
+          let job0 = job[Math.floor(Math.random() * job.length)];
+          if (job0 == "Bạn bị Đức Bo địt và đéo nhận được đồng nào.") {
+            return api.sendMessage("Bạn bị Đức Bo địt và đéo nhận được đồng nào.",threadID,messageID);
+          } else
+					api.sendMessage(getText('work', job0, amount), threadID, () => {
 						Economy.addMoney(senderID, parseInt(amount));
 						Economy.updateWorkTime(senderID, Date.now());
 					}, messageID);
