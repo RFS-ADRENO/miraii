@@ -11,15 +11,31 @@ module.exports = function ({ api, __GLOBAL, User }) {
 		return text;
 	}
 
+  const fs = require("fs");
+  const axios = require("axios");
+
 	return async function ({ event }) {
 		if (__GLOBAL.resendBlocked.includes(parseInt(event.threadID))) return;
-		if (!__GLOBAL.messages.some(item => item.msgID == event.messageID)) return;
-		var getMsg = __GLOBAL.messages.find(item => item.msgID == event.messageID);
-		let tag = await User.getName(event.senderID);
-		if (event.senderID != api.getCurrentUserID())
-			return api.sendMessage({
-				body: tag + ((getMsg.msgBody == '') ? getText('unsentAttachment') : getText('unsent', getMsg.msgBody)),
-				mentions: [{ tag, id: event.senderID }]
-			}, event.threadID);
-	}
+    let {messageID, senderID, threadID, body } = event;
+    if(event.type == "message_unsend") {
+      if(!__GLOBAL.message.some(item => item.msgID == messageID)) return;
+      var getMsg = __GLOBAL.message.find(item => item.msgID == messageID);
+      let name = (await api.getUserInfo(event.senderID))[senderID].name;
+      if (!getMsg) return api.sendMessage(name + ' vừa gỡ 1 tin nhắn nào đó!',threadID);
+      if(getMsg.attachment[0]) {
+        console.log(getMsg.attachment);
+        let msg = `Con lợn ${name} vừa gỡ ${getMsg.attachment.length} tệp đính kèm:\n`
+        var atm = [];
+        for (var i = 0; i < getMsg.attachment.length; i++) {
+          let ext = getMsg.attachment[i].type;
+          if (ext == "photo") {ext = "jpg"} else {if (ext == "video") {ext = "mp4"} else {if (ext == "audio") {ext = "mp3"}else ext = "gif"}}; 
+          fs.writeFileSync(__dirname + `/src/${i}.${ext}`, Buffer.from(((await axios.get(getMsg.attachment[i].url, { responseType: 'arraybuffer' })).data), 'utf-8'));
+          var att = __dirname + `/src/${i}.${ext}`;
+          atm.push(fs.createReadStream(att));
+        }
+        if (getMsg.msg != "") msg += getMsg.msg;
+        return api.sendMessage({body: msg,attachment: atm},threadID);
+      } else if(getMsg.msg != "") return api.sendMessage(`Con lợn ${name} vừa gỡ một tin nhắn với nội dung:\n ${getMsg.msg}`,threadID);
+      }
+  }
 }
